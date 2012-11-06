@@ -19,50 +19,66 @@ import org.powerbot.game.client.RSInfo;
  * @author Timer
  */
 public class Game {
-	public static final int INDEX_LOGIN_SCREEN = 3;
-	public static final int INDEX_LOBBY_SCREEN = 7;
-	public static final int INDEX_LOGGING_IN = 9;
-	public static final int INDEX_MAP_LOADED = 11;
-	public static final int INDEX_MAP_LOADING = 12;
-	public static final int[] INDEX_LOGGED_IN = {INDEX_MAP_LOADED, INDEX_MAP_LOADING};
+        private static short world = -1;
+
+	public static final int LOGOUT_SCREEN = -834768765;
+	public static final int LOGIN_CHECK_ONE = -638352585;
+	public static final int LOBBY_SCREEN = -932976855;
+	public static final int LOGIN_CHECK_TWO = -196416180;
+	public static final int LOGGING_IN_TO_GAME = -441936405; //Is this map loading? Never checked.
+	public static final int LOGGED_IN = -245520225;
 
 	/**
 	 * @return The current state of the game client.
 	 */
-	public static int getClientState() {
-		final Client client = Context.client();
-		final Multipliers multipliers = Context.multipliers();
-		final Constants constants = Context.constants();
-		final int clientState = client.getLoginIndex() * multipliers.GLOBAL_LOGININDEX;
-		if (clientState == constants.CLIENTSTATE_3) {
-			return 3;
-		} else if (clientState == constants.CLIENTSTATE_6) {
-			return 6;
-		} else if (clientState == constants.CLIENTSTATE_7) {
-			return 7;
-		} else if (clientState == constants.CLIENTSTATE_9) {
-			return 9;
-		} else if (clientState == constants.CLIENTSTATE_10) {
-			return 10;
-		} else if (clientState == constants.CLIENTSTATE_11) {
-			return 11;
-		} else if (clientState == constants.CLIENTSTATE_12) {
-			return 12;
-		}
-		return -1;
+	public static int getClientState()
+	{
+		return Context.client().getLoginIndex();
 	}
 
 	/**
-	 * @return <tt>true</tt> if this client instance is logged in; otherwise <tt>false</tt>.
+	 * @return The current world you are. -1 means you can't obtain current world yet.
+         * @parameter "recheck" if true it will force a check for current world regardless of state.
+         *             Otherwise no checks are performed unless the current world is -1.
 	 */
-	public static boolean isLoggedIn() {
-		final int state = getClientState();
-		for (final int p_state : INDEX_LOGGED_IN) {
-			if (state == p_state) {
-				return true;
+	public static short getWorld(boolean recheck)
+	{
+		if (recheck || world == -1)
+		{
+			int state = getClientState();
+			char[] message;
+			int length = -1;
+			if (state == LOBBY_SCREEN)
+			{
+				String text = Widgets.get(910).getChild(11).getText();
+				if (text == null)
+					return world;
+
+				message = text.toCharArray();
+				length = message.length - 6;
+			} 
+			else if (state == LOGGED_IN) 
+			{
+				String text = Widgets.get(550).getChild(18).getText();
+				if (text == null)
+					return world;
+
+				message = text.toCharArray();
+				length = message.length - 26;
+			} else {
+				return world;
 			}
-		}
-		return false;
+
+			StringBuilder sb = new StringBuilder(length);
+			for (int i = message.length - length; i < message.length; ++i)
+			{
+				if (message[i] < '0' || message[i] > '9')
+					break;
+				sb.append(message[i]);
+			}
+			world = (short)Integer.parseInt(sb.toString());
+		}	
+		return world;
 	}
 
 	/**
