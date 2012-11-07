@@ -1,228 +1,206 @@
 package org.powerbot.game.api.methods.input;
 
-import java.awt.Component;
-import java.awt.event.InputEvent;
+import java.awt.Canvas;
+
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 
 import org.powerbot.core.script.job.Task;
-import org.powerbot.game.api.util.Random;
+
 import org.powerbot.game.bot.Context;
-import org.powerbot.game.client.Client;
+import org.powerbot.game.api.util.Random;
+import org.powerbot.game.api.methods.Tabs;
 
-/**
- * A utility that handles the dispatching of fake key events.
- *
- * @author Timer
- */
-public class Keyboard {
-	/**
-	 * 'Presses' the given char for the given delay and with the given mask.
-	 *
-	 * @param ch    The char to press.
-	 * @param delay The time until the key is held down.
-	 * @param mask  The mask to press this key with.
-	 */
-	public static void pressKey(final char ch, final int delay, final int mask) {
-		pressKey(ch, ch, delay, mask);
+public class Keyboard
+{
+	private static Canvas target = null;
+	private static KeyListener listener = null;
+	
+	public static int START = -1, END = -1;
+
+	public static final int ENTER_AFTER_EACH_WORD = 0x1;
+	public static final int ENTER_WHEN_DONE = 0x2;
+
+	private static int getDelay()
+	{
+		if (END - START >= 0 && START >= 0)
+			return Random.nextInt(START, END);
+		return Random.nextInt(120, 160);
 	}
 
-	/**
-	 * 'Presses' the given char for the given delay and with the given mask.
-	 *
-	 * @param ch    The char to press.
-	 * @param code  The code of the char to press.
-	 * @param delay The time until the key is held down.
-	 * @param mask  The mask to press this key with.
-	 */
-	public static void pressKey(final char ch, final int code, final int delay, final int mask) {
-		getKeyboard().keyPressed(
-				new KeyEvent(getTarget(), KeyEvent.KEY_PRESSED, System.currentTimeMillis() + delay, mask, code, getKeyChar(ch), getLocation(ch))
-		);
-		if ((ch < KeyEvent.VK_LEFT || ch > KeyEvent.VK_DOWN) && (ch < KeyEvent.VK_SHIFT || ch > KeyEvent.VK_CAPS_LOCK) && (ch != KeyEvent.CHAR_UNDEFINED)) {
-			getKeyboard().keyTyped(
-					new KeyEvent(getTarget(), KeyEvent.KEY_TYPED, System.currentTimeMillis() + delay, mask, KeyEvent.VK_UNDEFINED, getKeyChar(ch), 0)
-			);
-		}
-	}
-
-	/**
-	 * Releases a key after the given delay and with the given mask.
-	 *
-	 * @param ch    The char to release.
-	 * @param delay The time to wait until this key is released.
-	 * @param mask  The mask to release the given char with.
-	 */
-	public static void releaseKey(final char ch, final int delay, final int mask) {
-		releaseKey(ch, ch, delay, mask);
-	}
-
-	/**
-	 * Releases a key after the given delay and with the given mask.
-	 *
-	 * @param ch    The char to release.
-	 * @param code  The code of the char to release.
-	 * @param delay The time to wait until this key is released.
-	 * @param mask  The mask to release the given char with.
-	 */
-	public static void releaseKey(final char ch, final int code, final int delay, final int mask) {
-		getKeyboard().keyReleased(
-				new KeyEvent(getTarget(), KeyEvent.KEY_RELEASED, System.currentTimeMillis() + delay, mask, code, getKeyChar(ch), getLocation(ch))
-		);
-	}
-
-	/**
-	 * Returns the standard location of the character on the keyboard for masks.
-	 *
-	 * @param ch The character to determine the position of.
-	 * @return The key location value.
-	 */
-	private static int getLocation(final char ch) {
-		if (ch >= KeyEvent.VK_SHIFT && ch <= KeyEvent.VK_ALT) {
-			return Random.nextInt(KeyEvent.KEY_LOCATION_LEFT, KeyEvent.KEY_LOCATION_RIGHT + 1);
-		}
-		return KeyEvent.KEY_LOCATION_STANDARD;
-	}
-
-	/**
-	 * Types a single character.
-	 *
-	 * @param ch The key to type.
-	 */
-	public static void sendKey(final char ch) {
-		sendKey(ch, 0);
-	}
-
-	/**
-	 * Presses and holds the given character for the delay, then releases.
-	 *
-	 * @param ch    The character to type.
-	 * @param delay The time to hold the key for.
-	 */
-	public static void sendKey(char ch, final int delay) {
-		int code = ch;
-		if (ch >= 'a' && ch <= 'z') {
-			code -= 32;
-		}
-
-		sendKey(ch, code, delay);
-	}
-
-	/**
-	 * Presses and holds the given character for the delay, then releases.
-	 *
-	 * @param ch    The character to type.
-	 * @param code  Key code for special characters
-	 * @param delay The time to hold the key for.
-	 */
-	public static void sendKey(char ch, int code, final int delay) {
-		boolean shift = false;
-		if (ch >= 'A' && ch <= 'Z') {
-			shift = true;
-		}
-		int wait = 0;
-		if (shift) {
-			pressKey((char) KeyEvent.VK_SHIFT, 0, InputEvent.SHIFT_DOWN_MASK);
-			wait = Random.nextInt(100, 200);
-		}
-		pressKey(ch, code, wait, shift ? InputEvent.SHIFT_DOWN_MASK : 0);
-		if (delay > 500) {
-			pressKey(ch, code, 500 + wait, shift ? InputEvent.SHIFT_DOWN_MASK : 0);
-			final int iterationWait = delay - 500;
-			for (int i = 37; i < iterationWait; i += Random.nextInt(20, 40)) {
-				pressKey(ch, code, 500 + i + wait, shift ? InputEvent.SHIFT_DOWN_MASK : 0);
-			}
-		}
-		final int releasedDelay = delay + Random.nextInt(-30, 30);
-		releaseKey(ch, code, releasedDelay + wait, shift ? InputEvent.SHIFT_DOWN_MASK : 0);
-		if (shift) {
-			releaseKey((char) KeyEvent.VK_SHIFT, releasedDelay + wait + Random.nextInt(50, 120), InputEvent.SHIFT_DOWN_MASK);
-		}
-	}
-
-	/**
-	 * Types an array of characters.
-	 *
-	 * @param text       The text to send.
-	 * @param pressEnter <tt>true</tt> to press enter; otherwise <tt>false</tt>.
-	 */
-	public static void sendText(final String text, final boolean pressEnter) {
-		sendText(text, pressEnter, 100, 200);
-	}
-
-	/**
-	 * Types an array of characters with the given delay between keys.
-	 *
-	 * @param text       The text to enter into the game.
-	 * @param pressEnter <tt>true</tt> to press enter; otherwise <tt>false</tt>.
-	 * @param minDelay   The lowest possible wait (inclusive).
-	 * @param maxDelay   The largest possible wait (exclusive).
-	 */
-	public static void sendText(final String text, final boolean pressEnter, final int minDelay, final int maxDelay) {
-		final char[] chars = text.toCharArray();
-		for (final char element : chars) {
-			final int wait = Random.nextInt(minDelay, maxDelay);
-			sendKey(element, wait);
-			if (wait > 0) {
-				Task.sleep(wait);
-			}
-		}
-		if (pressEnter) {
-			sendKey((char) KeyEvent.VK_ENTER, Random.nextInt(minDelay, maxDelay));
-		}
-	}
-
-	/**
-	 * @return <tt>true</tt> if the keyboard is ready to accept events; otherwise <tt>false</tt>.
-	 */
-	public static boolean isReady() {
+	private static boolean grabInformation()
+	{
+		if (target != null && listener != null)
+			return true;
 		try {
-			return getKeyboard() != null;
-		} catch (RuntimeException ignored) {
+			target = Context.client().getCanvas();
+			listener = target.getKeyListeners()[0];
+		} catch (Exception e) {
+			System.out.println("Error: Obtaining Key Information.");
+			return false;
 		}
-		return false;
+		return true;
 	}
 
-	/**
-	 * Returns the keyboard associated with this thread-group to relay events to.
-	 *
-	 * @return The <code>org.powerbot.game.client.input.Keyboard</code> to relay events to.
-	 */
-	private static org.powerbot.game.client.input.Keyboard getKeyboard() {
-		final Client client = Context.client();
-		if (client == null || client.getCanvas() == null) {
-			throw new RuntimeException("client not ready for events");
-		}
-		final KeyListener[] listeners = client.getCanvas().getKeyListeners();
-		if (listeners.length != 1) {
-			throw new RuntimeException("listener mismatch");
-		}
-		return (org.powerbot.game.client.input.Keyboard) listeners[0];
+	public static boolean keyPressed(char key)
+	{
+		return keyPressed(key, 0x0, 0x0);
 	}
 
-	/**
-	 * The component associated with this thread-group to dispatch events onto.
-	 *
-	 * @return The <code>Component</code> to dispatch events to.
-	 */
-	private static Component getTarget() {
-		final Context context = Context.get();
-		if (context.getApplet() == null || context.getApplet().getComponentCount() == 0) {
-			throw new RuntimeException("client not ready for events");
-		}
-		return context.getApplet().getComponent(0);
+	public static boolean keyPressed(char key, int code)
+	{
+		return keyPressed(key, code, 0x0);
 	}
 
-	/**
-	 * Returns the key char for this character, excluding non-letters.
-	 *
-	 * @param c The character to verify.
-	 * @return The verified character.
-	 */
-	private static char getKeyChar(final char c) {
-		if (c >= 36 && c <= 40) {
-			return KeyEvent.VK_UNDEFINED;
+	public static boolean keyPressed(char key, int code, int modifiers)
+	{
+		if (!grabInformation())
+			return false;
+		KeyEvent event = new KeyEvent(target, KeyEvent.KEY_PRESSED, System.currentTimeMillis(), modifiers, code, key, 0x1);
+		System.out.println(toString("[PRESSED]: ", event));
+		listener.keyPressed(event);
+		return true;
+	}
+
+	public static boolean keyTyped(char key)
+	{
+		return keyTyped(key, 0x0, 0x0);
+	}
+
+	public static boolean keyTyped(char key, int code)
+	{
+		return keyTyped(key, code, 0x0);
+	}
+
+	public static boolean keyTyped(char key, int code, int modifiers)
+	{
+		if (!grabInformation())
+			return false;
+		KeyEvent event = new KeyEvent(target, KeyEvent.KEY_TYPED, System.currentTimeMillis(), modifiers, code, key, 0x0);
+		listener.keyTyped(event);
+		return true;
+	}
+
+	public static boolean keyReleased(char key)
+	{
+		return keyReleased(key, 0x0, 0x0);
+	}
+
+	public static boolean keyReleased(char key, int code)
+	{
+		return keyReleased(key, code, 0x0);
+	}
+
+	public static boolean keyReleased(char key, int code, int modifiers)
+	{
+		if (!grabInformation())
+			return false;
+		KeyEvent event = new KeyEvent(target, KeyEvent.KEY_RELEASED, System.currentTimeMillis(), modifiers, code, key, 0x1);
+		listener.keyReleased(event);
+		return true;
+	}
+
+	public static boolean sendTab(int tab)
+	{
+		if (!grabInformation())
+			return false;
+		listener.keyPressed(
+			new KeyEvent(target, KeyEvent.KEY_PRESSED, System.currentTimeMillis(), 0x0, 0x6F + tab, (char)0xFFFF, 0x1)
+		);
+		Task.sleep(getDelay());
+		listener.keyReleased(
+			new KeyEvent(target, KeyEvent.KEY_RELEASED, System.currentTimeMillis(), 0x0, 0x6F + tab, (char)0xFFFF, 0x1)
+		);
+		return true;
+	}
+
+	public static boolean sendTab(Tabs tab)
+	{
+		if (!grabInformation())
+			return false;
+		listener.keyPressed(
+			new KeyEvent(target, KeyEvent.KEY_PRESSED, System.currentTimeMillis() + getDelay(), 0x0, tab.getFunctionKey() & 0xFF, (char)0xFFFF, 0x1)
+		);
+		Task.sleep(getDelay());
+		listener.keyReleased(
+			new KeyEvent(target, KeyEvent.KEY_RELEASED, System.currentTimeMillis() + getDelay(), 0x0, tab.getFunctionKey() & 0xFF, (char)0xFFFF, 0x1)
+		);
+		return true;	
+	}
+
+	public static void type(String text, int settings)
+	{
+		type(text.toCharArray(), settings);
+	}
+
+	public static void type(char[] text, int settings)
+	{
+		int modifiers = 0x0;
+		int code = 0x0;
+		int previous = '\0';
+		boolean status = true;
+		for (char c : text)
+		{
+			if (c == ' ' && (settings & ENTER_AFTER_EACH_WORD) == ENTER_AFTER_EACH_WORD)
+			{
+				hitSpecialKey(KeyEvent.VK_ENTER, 0x0);				
+				continue;
+			}
+			modifiers = c >= 'A' && c <= 'Z' ? 0x10 : 0x0;
+			if (c != (previous & 0xFF))
+			{
+				if (modifiers == 0x10)
+					hitSpecialKey(KeyEvent.VK_SPACE, modifiers);
+				previous = c;
+				keyPressed(c, code, modifiers);
+				keyTyped(c, code, modifiers);
+				Task.sleep(getDelay());
+				keyReleased(c, code, modifiers);
+			} else {
+				keyTyped(c, code, modifiers);
+				if (previous < 0xFF00)
+				{
+					if (modifiers == 0x10)
+						hitSpecialKey(KeyEvent.VK_SPACE, modifiers);
+					Task.sleep(500); //FIRST TIME HOLD DELAY.
+					previous |= 0xFF00;
+					if (modifiers == 0x10)
+						hitSpecialKey(KeyEvent.VK_SPACE, modifiers);
+				} else {
+					Task.sleep(getDelay());
+					if (modifiers == 0x10)
+						hitSpecialKey(KeyEvent.VK_SPACE, modifiers);
+				}
+				keyReleased(c, code, modifiers);
+			}
 		}
-		return c;
+		if ((settings & ENTER_WHEN_DONE) == ENTER_WHEN_DONE)
+			hitSpecialKey(KeyEvent.VK_ENTER, 0x0);
+	}
+
+	public static void hitSpecialKey(int code, int modifiers)
+	{
+		char c = (char)0xFFFF;
+		keyPressed(c, code, modifiers);
+		Task.sleep(getDelay());
+		keyReleased(c, code, modifiers);
+	}
+
+	public static String toString(String name, KeyEvent e)
+	{
+		StringBuilder sb = new StringBuilder();
+		char key = e.getKeyChar();
+		sb.append(name);
+		sb.append(", Key(INT): ");
+		sb.append((int)key);
+		sb.append(", Key(CHAR): ");
+		sb.append(key >= ' ' ? key : "N/A");
+		sb.append(", Code: ");
+		sb.append(e.getKeyCode());
+		sb.append(", Location: ");
+		sb.append(e.getKeyLocation());
+		sb.append(", Modifiers: ");
+		sb.append(e.getModifiers());
+		return sb.toString();
 	}
 }
